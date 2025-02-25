@@ -1,0 +1,217 @@
+---
+title: "Assignment 5 - Lucas Lobo"
+format: pdf
+author: "Lucas Lobo" 
+date: "February 24, 2025"
+---
+
+## Assignment 5: Lucas Lobo
+
+The following is my submission for assignment 5 in a .qmd file. I will make note when I do each step throughout the document.
+
+(1): was done above.
+
+(2): Loading the dataset.
+
+```{python}
+import pandas as pd
+import wbgapi as wb
+
+# Define the indicators to download
+indicators = {
+    'gdp_per_capita': 'NY.GDP.PCAP.CD',
+    'gdp_growth_rate': 'NY.GDP.MKTP.KD.ZG',
+    'inflation_rate': 'FP.CPI.TOTL.ZG',
+    'unemployment_rate': 'SL.UEM.TOTL.ZS',
+    'total_population': 'SP.POP.TOTL',
+    'life_expectancy': 'SP.DYN.LE00.IN',
+    'adult_literacy_rate': 'SE.ADT.LITR.ZS',
+    'income_inequality': 'SI.POV.GINI',
+    'health_expenditure_gdp_share': 'SH.XPD.CHEX.GD.ZS',
+    'measles_immunisation_rate': 'SH.IMM.MEAS',
+    'education_expenditure_gdp_share': 'SE.XPD.TOTL.GD.ZS',
+    'primary_school_enrolment_rate': 'SE.PRM.ENRR',
+    'exports_gdp_share': 'NE.EXP.GNFS.ZS'
+}
+
+# Get the list of country codes for the "World" region
+country_codes = wb.region.members('WLD')
+
+# Download data for countries only in 2022
+df = wb.data.DataFrame(indicators.values(), economy=country_codes, time=2022, skipBlanks=True, labels=True).reset_index()
+
+# Delete the 'economy' column
+df = df.drop(columns=['economy'], errors='ignore')
+
+# Create a reversed dictionary mapping indicator codes to names
+# Rename the columns and convert all names to lowercase
+df.rename(columns=lambda x: {v: k for k, v in indicators.items()}.get(x, x).lower(), inplace=True)
+
+# Sort 'country' in ascending order
+df = df.sort_values('country', ascending=True)
+
+# Reset the index after sorting
+df = df.reset_index(drop=True)
+
+# Display the number of rows and columns
+print(df.shape)
+
+# Display the first few rows of the data
+print(df.head(3))
+
+# Save the data to a CSV file
+df.to_csv('wdi.csv', index=False)
+```
+
+(3): Exploratory Data Analysis:
+
+The three items of analysis I will analyze are:
+
+1. Descriptive statistics of the inflation_rate variable.
+
+2. Correlation between unemployment_rate and life_expectancy.
+
+3. An OLS regression of gdp_per_capita explained by life_expectancy, unemployment_rate, and education_expenditure_gdp_share
+
+::: {#fig-inflation}
+```{python}
+# (1) Inflation statistics:
+print(df['inflation_rate'].describe())
+```
+:::
+
+::: {#fig-correlation}
+```{python}
+# (2) Correlation
+coeff = df[['unemployment_rate', 'life_expectancy']].corr().iloc[0, 1]
+print(f"Correlation between Unemployment Rate and Life Expectancy: {coeff:.4f}")
+```
+:::
+
+::: {#fig-regression}
+```{python}
+# (3) Regression Analysis: 
+import statsmodels.api as sm
+# Clean and define variables
+df_clean = df.dropna(subset=['gdp_per_capita', 'life_expectancy', 'unemployment_rate', 'education_expenditure_gdp_share'])
+X = df_clean[['life_expectancy', 'unemployment_rate', 'education_expenditure_gdp_share']]
+y = df_clean['gdp_per_capita']
+# Constant term:
+X = sm.add_constant(X)
+# Model + Summary.
+model = sm.OLS(y, X).fit()
+print(model.summary())
+```
+:::
+
+<div style="text-align: left;">
+
+Three main takeaways:
+
+1. The mean inflation rate of 12.404 is about 4 points higher than the median inflation rate of 7.931, perhaps demonstrating that a select few countries have rates of hyper-inflation that skew the distribution. Additionally, while the minimum inflation rate (0th percentile) is -6.687, the 25th percentile is 5.518, which may suggest that very few countries experience deflation, but far more experience inflation.
+
+2. The scatterplot shows a general negative correlation between unemployment rate and life espectancy. However, in terms of sample data, most countries have unemployment rates less than 10 percent, with only 4-5 countries having a rate higher than 25 percent. So, it may be difficult to extrapolate this data outside of a specified interval. The correlation between Unemployment Rate and Life Expectancy is -0.2112. So as unemployment rate increases, life expectancy is expected to decrease. This is confirmed by our line of best fit and confidence interval. 
+
+3. The R-squared of our model is 0.440 -- pretty high. Around 44% of the variation in gdp per capita can be explained by life expectancy, unemployment rate, and education expenditure by gdp share. Life expectancy is statistically significant at the $alpha$ = 0.05 significance level, whereas unemployment rate and education expenditure are not.
+
+(4): Visualizations:
+
+The two visualization I will explore are:
+
+1. A scatterplot between unemployment_rate and life_expectancy (like (2) above).
+
+2. A boxplot of gdp_per_capita.
+
+::: {#fig-scatterplot}
+```{python}
+#| echo: false
+
+# (1) Scatterplot:
+
+# Importing packages.
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Scatterplot
+plt.figure(figsize=(8, 6))
+sns.regplot(x=df['unemployment_rate'], y=df['life_expectancy'], scatter=True, line_kws={'color': 'red'}) 
+plt.xlabel('Unemployment Rate')  # independent variable
+plt.ylabel('Life Expectancy')  # dependent variable
+plt.title('Unemployment Rate vs. Life Expectancy')
+plt.show()
+```
+:::
+
+<div style="text-align: left;">
+
+Figure 1. Scatterplot showing the relationship between unemployment rate and life expectancy. The red line represents a linear trend, and the shaded red area represents a 95% confidence interval of this estimate.
+
+Source: World Development Indicators
+
+::: {#fig-boxplot}
+```{python}
+#| echo: false
+
+# (2) Boxplot
+plt.figure(figsize=(3, 5))
+sns.boxplot(y=df['gdp_per_capita'], color='steelblue')
+plt.ylabel("GDP per Capita (USD)")
+plt.title("Distribution of GDP per Capita")
+plt.show()
+```
+:::
+
+<div style="text-align: left;">
+
+Figure 1. Boxplot showing the summary statistics of the gdp_per_capita variable.
+
+Source: World Development Indicators
+
+
+(5): Table.
+
+I will produce a table that highlights the count, mean, std, min, max, 25, 50, and 75th percentile of each numerical variable.
+
+::: {#tbl-summary}
+```{python}
+#| echo: false
+# !pip install rich : this will format the table in a way that allows references
+
+table = df.describe()
+import rich
+from rich.table import Table
+from rich.console import Console
+console = Console()
+summary_table = Table(title="Summary Statistics")
+
+# Columns
+summary_table.add_column("Statistic", justify="left", style="bold")
+for col in table.columns:
+    summary_table.add_column(col, justify="right")
+
+# Rows
+for index, row in table.iterrows():
+    summary_table.add_row(index, *[f"{val:.2f}" for val in row])
+
+summary_table
+```
+:::
+
+<div style="text-align: left;">
+
+Table 1. Summary statistics of variables.
+
+(6): Cross-references:
+
+As seen in **Table @tbl-summary**, the count of each of the variables in inconsistent across indicators. This is because of missing data. However, when computing our coefficients for the **Regression @fig-regression** and **Correlation Coefficient @fig-correlation**, empty values are automatically dropped from the dataset. While this may create some incomplete information, it is the only way to obtain these values. It may also explain the high t-score for education expenditure per gdp, since only 137 countries provide that information.
+
+Additionally, our findings from **GDP Boxplot @fig-boxplot** are further expressed in **Table @tbl-summary**, as we see that the mean value is far less than the median/50% percentile, indicating there are far more countries will lower gdp per capita.
+
+In addition to the wdi data, @health_sdgs highlights the ways in which new health discoveries in developing countries are helping achieve broader international sustainable development goals. @hdr showcases a ranking of countries' Human Development Indeces: a metric that is similar to WDI data but weights certain factors like quality of life and degrees of oppression more heavily.
+
+
+(7): Bibliography
+
+---
+bibliography: references.bib
+---

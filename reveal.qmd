@@ -1,0 +1,193 @@
+---
+title: "Assignment 5 - QTM 350"
+author: "Lucas Lobo"
+date: "02-25-2025"
+format: 
+  revealjs:
+    theme: solarized  # changing theme to solarize
+    transition: zoom  # changing slide transitions to zoom
+    slide-number: true  # Show slide numbers
+---
+
+## Introduction
+
+This assignment explores core summary statistics of certain economic variables as well as determinants of real gdp for a given country. We used data from the World Development index while also drawing upon previous research by the Human Development Report and The World Bank.
+
+We will first load the data:
+```{python}
+#| echo: false
+
+import pandas as pd
+import wbgapi as wb
+
+# Define the indicators to download
+indicators = {
+    'gdp_per_capita': 'NY.GDP.PCAP.CD',
+    'gdp_growth_rate': 'NY.GDP.MKTP.KD.ZG',
+    'inflation_rate': 'FP.CPI.TOTL.ZG',
+    'unemployment_rate': 'SL.UEM.TOTL.ZS',
+    'total_population': 'SP.POP.TOTL',
+    'life_expectancy': 'SP.DYN.LE00.IN',
+    'adult_literacy_rate': 'SE.ADT.LITR.ZS',
+    'income_inequality': 'SI.POV.GINI',
+    'health_expenditure_gdp_share': 'SH.XPD.CHEX.GD.ZS',
+    'measles_immunisation_rate': 'SH.IMM.MEAS',
+    'education_expenditure_gdp_share': 'SE.XPD.TOTL.GD.ZS',
+    'primary_school_enrolment_rate': 'SE.PRM.ENRR',
+    'exports_gdp_share': 'NE.EXP.GNFS.ZS'
+}
+
+# Get the list of country codes for the "World" region
+country_codes = wb.region.members('WLD')
+
+# Download data for countries only in 2022
+df = wb.data.DataFrame(indicators.values(), economy=country_codes, time=2022, skipBlanks=True, labels=True).reset_index()
+
+# Delete the 'economy' column
+df = df.drop(columns=['economy'], errors='ignore')
+
+# Create a reversed dictionary mapping indicator codes to names
+# Rename the columns and convert all names to lowercase
+df.rename(columns=lambda x: {v: k for k, v in indicators.items()}.get(x, x).lower(), inplace=True)
+
+# Sort 'country' in ascending order
+df = df.sort_values('country', ascending=True)
+
+# Reset the index after sorting
+df = df.reset_index(drop=True)
+
+# Display the number of rows and columns
+print(df.shape)
+
+# Display the first few rows of the data
+print(df.head(3))
+
+# Save the data to a CSV file
+df.to_csv('wdi.csv', index=False)
+```
+
+## Insight 1: Summary Statistics
+
+### A: Inflation
+
+```{python}
+# (1) Inflation.
+
+# Statistics
+print(df['inflation_rate'].describe())
+```
+
+## Insight 1: Summary Statistics
+
+### B: Unemployment and Life Expectancy
+
+```{python}
+# (2) Correlation
+
+coeff = df[['unemployment_rate', 'life_expectancy']].corr().iloc[0, 1]
+print(f"Correlation between Unemployment Rate and Life Expectancy: {coeff:.4f}")
+```
+
+## Insight 1: Summary Statistics
+
+### C: Summary Statistics
+
+```{python}
+#| echo: false
+# !pip install rich : this will format the table in a way that allows references
+
+table = df.describe()
+import rich
+from rich.table import Table
+from rich.console import Console
+console = Console()
+summary_table = Table(title="Summary Statistics")
+
+# Columns
+summary_table.add_column("Statistic", justify="left", style="bold")
+for col in table.columns:
+    summary_table.add_column(col, justify="right")
+
+# Rows
+for index, row in table.iterrows():
+    summary_table.add_row(index, *[f"{val:.2f}" for val in row])
+
+summary_table
+```
+
+
+## Insight 2: Plots
+
+### A: Scatterplot of Unemployment and Life Expectancy
+
+
+```{python}
+#| echo: false
+
+# (1) Scatterplot:
+
+# Importing packages.
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Scatterplot
+plt.figure(figsize=(8, 6))
+sns.regplot(x=df['unemployment_rate'], y=df['life_expectancy'], scatter=True, line_kws={'color': 'red'}) 
+plt.xlabel('Unemployment Rate')  # independent variable
+plt.ylabel('Life Expectancy')  # dependent variable
+plt.title('Unemployment Rate vs. Life Expectancy')
+plt.show()
+```
+
+## Insight 2: Plots
+
+### B: Boxplot of GDP per Capita.
+
+
+```{python}
+#| echo: false
+
+# (2) Boxplot
+plt.figure(figsize=(3, 5))
+sns.boxplot(y=df['gdp_per_capita'], color='steelblue')
+plt.ylabel("GDP per Capita (USD)")
+plt.title("Distribution of GDP per Capita")
+plt.show()
+```
+
+## Insight 3: Regression
+
+### Regression of GDP per Capita
+
+```{python}
+# (3) Regression Analysis: 
+import statsmodels.api as sm
+
+# Clean and define variables
+df_clean = df.dropna(subset=['gdp_per_capita', 'life_expectancy', 'unemployment_rate', 'education_expenditure_gdp_share'])
+X = df_clean[['life_expectancy', 'unemployment_rate', 'education_expenditure_gdp_share']]
+y = df_clean['gdp_per_capita']
+# Constant term:
+X = sm.add_constant(X)
+# Model + Summary.
+model = sm.OLS(y, X).fit()
+print(model.summary())
+```
+
+## Conclusion
+
+### Takeaways (1)
+
+The mean inflation rate of 12.404 is about 4 points higher than the median inflation rate of 7.931, perhaps demonstrating that a select few countries have rates of hyper-inflation that skew the distribution. Additionally, while the minimum inflation rate (0th percentile) is -6.687, the 25th percentile is 5.518, which may suggest that very few countries experience deflation, but far more experience inflation.
+
+## Conclusion
+
+### Takeaways (2)
+
+The scatterplot shows a general negative correlation between unemployment rate and life espectancy. However, in terms of sample data, most countries have unemployment rates less than 10 percent, with only 4-5 countries having a rate higher than 25 percent. So, it may be difficult to extrapolate this data outside of a specified interval. The correlation between Unemployment Rate and Life Expectancy is -0.2112. So as unemployment rate increases, life expectancy is expected to decrease. This is confirmed by our line of best fit and confidence interval. 
+
+## Conclusion
+
+### Takeaways (3)
+
+The R-squared of our regression model model is 0.440 -- pretty high. Around 44% of the variation in gdp per capita can be explained by life expectancy, unemployment rate, and education expenditure by gdp share. Life expectancy is statistically significant at the $alpha$ = 0.05 significance level, whereas unemployment rate and education expenditure are not.
